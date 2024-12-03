@@ -31,10 +31,24 @@ class TournamentManager:
         if self.tournament_type != TournamentType.PKO:
             raise ValueError("Knockout processing only available in PKO tournaments")
             
+        if eliminator_id == eliminated_id:
+            raise ValueError("A player cannot eliminate themselves")
+            
         eliminated_player = self.players[eliminated_id]
         eliminator = self.players[eliminator_id]
         
+        if eliminated_player.eliminated:
+            raise ValueError("This player has already been eliminated")
+            
+        if eliminator.eliminated:
+            raise ValueError("The eliminator has already been eliminated")
+            
         bounty = eliminated_player.bounty
+        if not bounty or bounty != self.bounty_amount:
+            # Reset bounty to correct amount if it's somehow different
+            bounty = self.bounty_amount
+            eliminated_player.bounty = bounty
+            
         # Half of bounty goes to eliminator immediately
         immediate_prize = (bounty / 2).quantize(Decimal('0.01'))
         # Other half gets added to eliminator's bounty
@@ -49,11 +63,21 @@ class TournamentManager:
         if self.tournament_type != TournamentType.PKO:
             return bounty_prizes
             
+        # Validate no self-eliminations (player can't finish behind themselves)
+        player_positions = {p.id: result.finishing_positions[p.id] for p in result.players}
+        for player in result.players:
+            others_ahead = [p for p in result.players 
+                          if result.finishing_positions[p.id] < result.finishing_positions[player.id]]
+            if player in others_ahead:
+                raise ValueError("Invalid positions: A player cannot eliminate themselves")
+            
         # Update player positions and elimination status
         for player in result.players:
             position = result.finishing_positions[player.id]
             player.position = position
             if position != 1:  # Not the winner
+                if player.eliminated:
+                    raise ValueError(f"Player {player.name} has already been eliminated")
                 player.eliminated = True
                 
         # Process bounties for eliminated players
@@ -62,6 +86,11 @@ class TournamentManager:
                 continue
                 
             bounty = eliminated.bounty
+            if not bounty or bounty != self.bounty_amount:
+                # Reset bounty to correct amount if it's somehow different
+                bounty = self.bounty_amount
+                eliminated.bounty = bounty
+                
             # Find players who finished better (lower position number)
             eliminators = [
                 p for p in result.players 
@@ -101,3 +130,7 @@ class TournamentManager:
     def get_remaining_players(self) -> int:
         """Get number of players still in the tournament"""
         return sum(1 for p in self.players.values() if not p.eliminated)
+        
+    def get_current_level_info(self) -> BlindLevel:
+        """Get current blind level information"""
+        return self.blind_structure[self.current_level]

@@ -3,7 +3,7 @@ from decimal import Decimal
 from PyQt6.QtWidgets import QApplication
 from tournament_types import TournamentType, BlindLevel, PayoutStructure
 from tournament_manager import TournamentManager
-from main_window import AdminWindow, DisplayWindow
+from main_window import AdminWindow, DisplayWindow, TournamentSetupWizard
 
 def create_default_blind_structure():
     return [
@@ -73,13 +73,20 @@ def create_default_payout_structures():
 def main():
     app = QApplication(sys.argv)
     
-    # Create tournament manager with default settings
+    # Show setup wizard
+    wizard = TournamentSetupWizard()
+    if wizard.exec() != TournamentSetupWizard.DialogCode.Accepted:
+        sys.exit(0)
+        
+    settings = wizard.get_tournament_settings()
+    
+    # Create tournament manager with wizard settings and defaults
     manager = TournamentManager(
-        tournament_type=TournamentType.PKO,  # Change to REGULAR for non-bounty tournaments
-        buy_in=Decimal('100'),
+        tournament_type=settings['tournament_type'],
+        buy_in=settings['buy_in'],
         blind_structure=create_default_blind_structure(),
         payout_structures=create_default_payout_structures(),
-        bounty_amount=Decimal('50')  # Set to None for regular tournaments
+        bounty_amount=settings['bounty_amount']
     )
     
     # Create windows
